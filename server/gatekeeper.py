@@ -2,10 +2,12 @@ import socket
 import time
 import struct
 import hashlib
+import subprocess
 from argparse import ArgumentParser 
 
-def open_firewall_rule_for(addr):
+def open_firewall_rule_for(addr, gatekeeping_port):
     print(f"opening the port for GARY at {addr}")
+    p = subprocess.run(["iptables", "-A", "INPUT", "-p", "udp", "--sport",str(gatekeeping_port), "-j", "ACCEPT"])
 
 def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10_000_000_000):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -37,8 +39,8 @@ def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10
             if eaten != data[8:]:
                 print(f"not allowed, digest is {eaten} data is {data[8:]}")
                 continue
-            
-            open_firewall_rule_for(addr)
+
+            open_firewall_rule_for(addr, gatekeeping_port)
 
 
 def main():
