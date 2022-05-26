@@ -81,8 +81,6 @@ def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=1
             timestamp, = struct.unpack_from("<Q", data)
             now = time.time_ns()
 
-            print(f'timestamp now: {now} timestamp gotten: {timestamp}')
-
             if timestamp < now - acceptable_margin_ns or timestamp > now + acceptable_margin_ns:
                 print("not in acceptable timing window")
                 continue
