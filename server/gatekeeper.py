@@ -18,7 +18,7 @@ def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10
             if len(data) != 8 + 32:
                 print(f"non-recognized message coming in from {addr}")
 
-            timestamp, = struct.unpack_from(">Q", data)
+            timestamp, = struct.unpack_from("<Q", data)
             now = time.time_ns()
 
             print(f'timestamp now: {now} timestamp gotten: {timestamp}')
