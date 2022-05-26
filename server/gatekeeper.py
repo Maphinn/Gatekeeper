@@ -61,11 +61,12 @@ def main():
     parser.add_argument('listening_port', type=int, help="udp-port this service uses to listen in to messages from the outside world")
     parser.add_argument('gatekeeping_port', type=int, help="port that should be protected")
     parser.add_argument('secret', help="the secret to verify users")
+    parser.add_argument('--acceptable-margin', type=float, default=10.0, help="floating point number to specify how much network delay is allowed in network/time delay in seconds")
 
     args = parser.parse_args()
 
     print("running gatekeeperrrr")
-    run_server(args.listening_port, args.gatekeeping_port, args.secret)
+    run_server(args.listening_port, args.gatekeeping_port, args.secret, acceptable_margin_ns=int(args.acceptable_margin * 1_000_000_000))
 
 if __name__ == '__main__':
     main()
