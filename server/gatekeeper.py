@@ -5,11 +5,24 @@ import hashlib
 import subprocess
 from argparse import ArgumentParser 
 
-def open_firewall_rule_for(addr, gatekeeping_port):
-    print(f"opening the port for GARY at {addr}")
-    p = subprocess.run(["iptables", "-A", "INPUT", "-p", "udp", "--sport",str(gatekeeping_port), "-j", "ACCEPT"])
+def firewall_setup():
+    # Flush the GATEKEEPER chain if it already exists
+    subprocess.run(["iptables", "-F", "GATEKEEPER"])
+    # Create the GATEKEEPER chain in case it doesn't exist
+    subprocess.run(["iptables", "-N", "GATEKEEPER"])
+    # Remove the chain jump to prevent duplicates if it exists
+    subprocess.run(["iptables", "-D", "INPUT", "-j", "GATEKEEPER"])
+    # Add the chain jump to GATEKEEPER at the end of the INPUT chain
+    subprocess.run(["iptables", "-A", "INPUT", "-j", "GATEKEEPER"])
+
+def open_firewall_rule_for(addr, port):
+    print(f"opening the port \"{port}\" for GARY at {addr[0]}")
+    # Open the gatekeeping port for tcp and udp traffic comming from addr by adding them to the chain
+    subprocess.run(["iptables", "-A", "GATEKEEPER", "-s", addr[0], "-p", "tcp", "--dport", str(port), "-j", "ACCEPT"])
+    subprocess.run(["iptables", "-A", "GATEKEEPER", "-s", addr[0], "-p", "udp", "--dport", str(port), "-j", "ACCEPT"])
 
 def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10_000_000_000):
+    firewall_setup()
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(("0.0.0.0", listening_port))
 
