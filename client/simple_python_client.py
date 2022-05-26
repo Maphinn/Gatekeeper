@@ -14,9 +14,9 @@ def enable_ssh_port(ip, port, secret):
 
     # sha256(timestamp || secret)
     m.update(struct.pack("<Q", timestamp))
-    m.update(SECRET)
+    m.update(secret.encode('ascii'))
 
-    sock.sendto(struct.pack("<Qp", timestamp, m.digest()))
+    sock.sendto(struct.pack("<Qp", timestamp, m.digest()), (ip, port))
 
 def main():
     parser = ArgumentParser(description="simple unlocking client")
