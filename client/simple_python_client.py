@@ -9,7 +9,7 @@ def enable_ssh_port(ip, port, secret):
     # Create UDP sock
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    timestamp = time.time()
+    timestamp = time.time_ns()
     m = hashlib.sha256()
 
     # sha256(timestamp || secret)
