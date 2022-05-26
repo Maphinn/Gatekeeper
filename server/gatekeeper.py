@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 def open_firewall_rule_for(addr):
     print(f"opening the port for GARY at {addr}")
 
-def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10_000):
+def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10_000_000_000):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(("0.0.0.0", listening_port))
 
@@ -17,6 +17,7 @@ def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10
 
             if len(data) != 8 + 32:
                 print(f"non-recognized message coming in from {addr}")
+                continue
 
             timestamp, = struct.unpack_from("<Q", data)
             now = time.time_ns()
@@ -29,9 +30,12 @@ def run_server(listening_port, gatekeeping_port, secret, acceptable_margin_ns=10
 
             m = hashlib.sha256()
             m.update(data[:8])
-            m.update(secret)
+            m.update(secret.encode('ascii'))
 
-            if m.digest() != data[8:]:
+            eaten = m.digest()
+
+            if eaten != data[8:]:
+                print(f"not allowed, digest is {eaten} data is {data[8:]}")
                 continue
             
             open_firewall_rule_for(addr)
