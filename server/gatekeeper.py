@@ -24,7 +24,7 @@ The block ports is a list of rules to ensure the ports that are to be gate keepe
     appear in either the whitelist or the temporary leases
 '''
 
-
+DEBUG = False
 
 def print_header():
         red = '\u001b[38;5;196m'
@@ -38,10 +38,14 @@ def print_header():
         print(f' ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝')
         print(f'                       {red}HALT, FIRST ANSWER MY RIDDLES!{clear}\n')
 
-
+def dprint(*args, **kwargs):
+    if DEBUG:
+        green = '\u001b[38;5;101m'
+        clear = '\u001b[0m'
+        print(f"{green}DBG:{args[0]}{clear}")
 
 def iptables(*args, ignore_error=False):
-    #print(f"iptables command: iptables {' '.join(args)}")
+    dprint(f"iptables command: iptables {' '.join(args)}")
     result = subprocess.run(["iptables", *args], capture_output=True)
 
     if result.returncode != 0 and not ignore_error:
@@ -140,19 +144,19 @@ def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=1
 # Parse one line of the config file
 def parse_config_argument(args, arg):
     if (arg[0] == "port"):
-        print(f"Listening on port: {arg[1]}")
+        dprint(f"Listening on port: {arg[1]}")
         args["PORT"] = int(arg[1])
     elif (arg[0] == "prot"):
-        print(f"Setting protected ports: {arg[1].split(',')}")
+        dprint(f"Setting protected ports: {arg[1].split(',')}")
         args["PROT"] = list(arg[1].split(','))
     elif (arg[0] == "pass"):
-        print(f"Got secret from the config")
+        dprint(f"Got secret from the config")
         args["PASS"] = str(arg[1])
     elif (arg[0] == "locs"):
-        print(f"Setting whitelisted ranges to: {arg[1].split(',')}")
+        dprint(f"Setting whitelisted ranges to: {arg[1].split(',')}")
         args["LOCS"] = list(arg[1].split(','))
     elif (arg[0] == "time"):
-        print(f"Setting time margin to {arg[1]} seconds")
+        dprint(f"Setting time margin to {arg[1]} seconds")
         args["TIME"] = int(arg[1])
     else:
         print(f"Error: Unkown config entry \"{arg[0]}\" with value \"{arg[1]}\"")
