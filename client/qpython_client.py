@@ -29,5 +29,5 @@ def main(argv):
     enable_ssh_port(args.server, args.port, args.secret)
 
 
-if name == 'main':
-    main(['1.2.3.4', 8112, 'password'])
+if __name__ == '__main__':
+    main(['1.2.3.4', '8112', 'password'])
