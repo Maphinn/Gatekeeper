@@ -1,15 +1,38 @@
 ################################################
-# Gatekeeper configuration
-#   Example setup
-#   Be sure to not use the default secret
+##
+##  Gatekeeper example configuration
+##
+##    Copy this file to .config
+##    Edit the values as you wish.
+##    Be sure to not use the default secret
+##
 ################################################
+# The port that the server listens on for the udp package from the client.
 # Listening udp port:
 port=8123
-# Protected ports: (seperated by comma's)
+
+# Ports that need to be shielded.
+# Any incomming udp or tcp traffic to these ports will be blocked by the firewall.
+# They will only open up once the secret and timestamp verifaction has succeeded.
+# Even then they will only open up for the ip address that send the packet.
+# The ports here are seperated by comma's
+# Protected ports:
 prot=21,22,25,80,443
+
+# A secret code that is verified by the server.
+# By making sure the secret is unique and not the default.
+# This secret will also need to be send by the client.
 # Secret:
 pass=How do you like them apples?
+
+# locs contains the ip addresses and ranges that should be whitelisted for your setup.
+# If you want your server to always allow certain addresses access, use this.
 # Local subnets:
 locs=192.168.0.0/16, 10.0.0.0/8
-# Time margin in seconds to accept requests
+
+# Time margin in seconds to accept requests.
+# To prevent replay attacks a timestamp is added and hashed along with the secret.
+# This timestamp is then verified against this specific margin in seconds,
+# to prevent replay attacks after some time has passed.
+# Time margin
 time=10
