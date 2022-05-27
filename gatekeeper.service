@@ -1,0 +1,12 @@
+# Contents of /etc/systemd/system/gatekeeper.service
+[Unit]
+Description=Gatekeeper traffic blocker
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart="/usr/bin/python3" ~/gatekeeper/server/gatekeeper.py ~/gatekeeper
+
+[Install]
+WantedBy=multi-user.target

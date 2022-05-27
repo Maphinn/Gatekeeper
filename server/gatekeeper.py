@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import logging
 import socket
 import time
@@ -6,6 +7,8 @@ import hashlib
 import subprocess
 import os
 from argparse import ArgumentParser
+#temp
+import sys
 
 '''
 The way it currently works is this.
@@ -164,8 +167,8 @@ def parse_config_argument(args, arg):
     return args
 
 # Read the config file and return the arguments
-def parse_config():
-    fp = open(".config", "r")
+def parse_config(path):
+    fp = open(path + "/.config", "r")
     lines = fp.readlines()
     args = {}
     for l in lines:
@@ -176,7 +179,7 @@ def parse_config():
 
 def main():
     print_header()
-    args = parse_config()
+    args = parse_config(sys.argv[1])
     #args = handle_args()
     try:
         # ports to gatekeep
