@@ -1,0 +1,15 @@
+################################################
+# Gatekeeper configuration
+#   Example setup
+#   Be sure to not use the default secret
+################################################
+# Listening udp port:
+port=8123
+# Protected ports: (seperated by comma's)
+prot=21,22,25,80,443
+# Secret:
+pass=How do you like them apples?
+# Local subnets:
+locs=192.168.0.0/16, 10.0.0.0/8
+# Time margin in seconds to accept requests
+time=10
