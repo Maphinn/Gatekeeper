@@ -50,4 +50,8 @@ Garry has stolen your lawnmower for the last time.
 Keep gary out by closing the gate to your server which hosts the lawnmower daemon.
 Stay out of my shed Garry!
 
-
+### Todo:
+- [x] Add config file support
+- [ ] Rewrite argparse to support overloading and or substituting the config file
+- [ ] Add logging capabilties
+- [ ] Rewrite the README file with the correct instructions
