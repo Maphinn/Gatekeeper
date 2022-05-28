@@ -8,25 +8,7 @@ import hashlib
 import subprocess
 import os
 from argparse import ArgumentParser
-#temp
 import sys
-
-'''
-The way it currently works is this.
-
-This program now adds 3 lists to your ip-tables
-
-GATEKEEPER_WHITELIST
-GATEKEEPER_TEMPORARY_LEASES
-GATEKEEPER_BLOCK_PORTS
-
-The whitelist is a simple whitelist, by default it gets a pass for 192.168.0.0/24
-
-The temporary_leases are the machines that have proven they know the secret of the gatekeeper!
-
-The block ports is a list of rules to ensure the ports that are to be gate keeped are blocked if a client doesnt 
-    appear in either the whitelist or the temporary leases
-'''
 
 DEBUG = False
 
@@ -59,6 +41,7 @@ def iptables(*args, ignore_error=False):
 
     if result.returncode != 0 and not ignore_error:
         if result.stderr != b'iptables: Chain already exists.\n':
+            print("Calling iptables resulted in error!")
             logging.error("Calling iptables resulted in error!")
             logging.error(result.stdout)
             logging.error(result.stderr)
@@ -74,22 +57,27 @@ def create_chain_and_add_to_input(name):
     iptables("-N", name)                  # create chain
     iptables("-A", "INPUT", "-j", name)   # add jump from INPUT
 
-def firewall_setup(local_subnet, ports_to_block):
+def firewall_setup(whitelist, ports):
+    # Convert ports array to strings for iptables
+    ports = list(map(str,ports))
+    # Create the iptable chains
     create_chain_and_add_to_input("GATEKEEPER_WHITELIST")
     create_chain_and_add_to_input("GATEKEEPER_TEMPORARY_LEASES")
     create_chain_and_add_to_input("GATEKEEPER_BLOCK_PORTS")
-    # add local subnet to whitelist
-    for net in local_subnet:
+    # Add whitelist array to the whitelist chain
+    for net in whitelist:
         iptables("-A", "GATEKEEPER_WHITELIST", "-s", net, "-j", "ACCEPT")
-    # ensure that the ports are blocked by default
+    # Ensure that incomming traffic on the requested ports is blocked by default
     iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "tcp", "--match", "multiport",
-            "--dport", ",".join(ports_to_block), "-j", "DROP")
+            "--dport", ",".join(ports), "-j", "DROP")
     iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "udp", "--match", "multiport",
-            "--dport", ",".join(ports_to_block), "-j", "DROP")
+            "--dport", ",".join(ports), "-j", "DROP")
 
 def open_firewall_rule_for(addr, ports):
-    print(f"Verified connection from {addr}")
-    logging.info(f"Opening the ports \"" + ",".join(ports) + f"\" for {addr}")
+    # Convert ports array to strings for iptables
+    ports = list(map(str,ports))
+    print(f"Received verified connection from \"{addr}\", granting access to the ports: \"{', '.join(ports)}\"")
+    logging.info(f"Received verified connection from \"{addr}\", granting access to the ports: \"{', '.join(ports)}\"")
     # Open the gatekeeping port for tcp and udp traffic comming from addr by adding them to the chain
     iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "tcp", "--match", "multiport",
             "--dport", ",".join(ports), "-j", "ACCEPT")
@@ -128,70 +116,70 @@ def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=1
             # Open the firewall rule for the ports
             open_firewall_rule_for(addr, gatekeeping_ports)
 
-
-#def handle_args():
-#    parser = ArgumentParser(description="Gatekeeper")
-#    parser.add_argument('listening_port', type=int, help="udp-port this service uses to listen in to messages from the outside world")
-#    parser.add_argument('protected_ports', metavar='protected_port', nargs="+", default=[], help="port that should be protected")
-#    parser.add_argument('--secret', default='butts4ever', help="the secret to verify users")
-#    parser.add_argument("--local-subnet", default='192.168.0.0/16', help="local subnet, this is the net on which the protected ports are always reachable from")
-#    parser.add_argument('--acceptable-margin', type=float, default=10.0, help="floating point number to specify how much network delay is allowed in network/time delay in seconds")
-#
-#    args = parser.parse_args()
-#
-#    if os.geteuid() != 0:
-#        exit("You need to have root privileges to run this script.\nPlease try again, this time using 'sudo'. Exiting.")
-#
-#    if not args.protected_ports:
-#        print("no ports to protect")
-#        exit(1)
-#
-#    for i, port in enumerate(args.protected_ports):
-#        args.protected_ports[i] = int(port)
-#
-#        if 0 >= args.protected_ports[i] >= 65535:
-#            print(f"port {port} is not in the range 1-65535")
-#            exit(1)
-#    return args
-
-
 # Parse one line of the config file
 def parse_config_argument(args, arg):
-    if (arg[0] == "port"):
+    if (arg[0] == "port" and args.port == 8123):
         dprint(f"Listening on port: {arg[1]}")
-        args["PORT"] = int(arg[1])
-    elif (arg[0] == "prot"):
+        args.port = int(arg[1])
+    elif (arg[0] == "protected" and args.protected_ports == []):
         dprint(f"Setting protected ports: {arg[1].split(',')}")
-        args["PROT"] = list(arg[1].split(','))
-    elif (arg[0] == "pass"):
+        args.protected_ports = list(arg[1].split(','))
+    elif (arg[0] == "secret" and args.secret == ''):
         dprint(f"Got secret from the config")
-        args["PASS"] = str(arg[1])
-    elif (arg[0] == "locs"):
+        args.secret = str(arg[1])
+    elif (arg[0] == "whitelisted" and args.whitelisted == ''):
         dprint(f"Setting whitelisted ranges to: {arg[1].split(',')}")
-        args["LOCS"] = list(arg[1].split(','))
-    elif (arg[0] == "time"):
+        args.whitelisted = list(arg[1].split(','))
+    elif (arg[0] == "time" and args.time_margin == 10.0):
         dprint(f"Setting time margin to {arg[1]} seconds")
-        args["TIME"] = int(arg[1])
-    else:
-        print(f"Error: Unkown config entry \"{arg[0]}\" with value \"{arg[1]}\"")
-        exit(1)
+        args.time_margin = float(arg[1])
     return args
 
 # Read the config file and return the arguments
-def parse_config(path):
+def parse_config(args, path):
     fp = open(path + "/.config", "r")
     lines = fp.readlines()
-    args = {}
     for l in lines:
         l = l.strip()
         if len(l) > 1 and l[0] != '#':
             args = parse_config_argument(args, l.split('='))
     return args
 
+def handle_args():
+    # Check if access to iptables is possible
+    if os.geteuid() != 0:
+        exit("You need to have root privileges to run this script to edit firewall rules.\nPlease try again, this time using 'sudo'. Exiting.")
+
+    # Parse Arguments
+    parser = ArgumentParser(description="Gatekeeper")
+    parser.add_argument('-c', '--config',      default='', help="path of the config file")
+    parser.add_argument('-s', '--secret',      default='', help="the secret to verify users")
+    parser.add_argument('-w', '--whitelisted', default='', help="local subnet, this is the net on which the protected ports are always reachable from")
+    parser.add_argument('-t', '--time_margin', type=float, default=10.0, help="floating point number to specify how much network delay is allowed in network/time delay in seconds")
+    parser.add_argument('-p', '--port',        type=int,   default=8123, help="udp-port this service uses to listen in to messages from the outside world")
+    parser.add_argument('-x', '--protected_ports', default=[], metavar='protected-ports', nargs="+", help="port that should be protected")
+    args = parser.parse_args()
+
+    # If a config path has been supplied try to parse the config
+    if (args.config):
+        try:
+            args = parse_config(args, args.config)
+        except:
+            exit("Received a config path but failed to read the configuration file")
+
+    if not args.protected_ports:
+        exit("No configuration or ports to block")
+
+    # Check the ports
+    for i, port in enumerate(args.protected_ports):
+        args.protected_ports[i] = int(port)
+        if 0 >= args.protected_ports[i] or args.protected_ports[i] >= 65535:
+            sys.exit(f"Protected port \"{port}\" is not in the range 1-65535")
+    return args
+
 def main():
     # Parse the arguments and possible configuration
-    #args = handle_args()    
-    args = parse_config(sys.argv[1])
+    args = handle_args()   
     # Print the header
     print_header()
     # Setup logging and signal catching correctly
@@ -199,12 +187,12 @@ def main():
     signal.signal(signal.SIGINT, sigint_handler)
     try:
         # Setup the intial firewall state, creating the chains and blocking the right ports
-        firewall_setup(args["LOCS"], args["PROT"])
+        firewall_setup(args.whitelisted, args.protected_ports)
         # Start listening for the secret
-        run_server(args["PORT"],
-                   args["PROT"],
-                   args["PASS"],
-                   acceptable_margin_ns=int(args["TIME"] * 1_000_000_000))
+        run_server(args.port,
+                   args.protected_ports,
+                   args.secret,
+                   acceptable_margin_ns=int(args.time_margin * 1_000_000_000))
     finally:
         # Clean up
         rm_chain("GATEKEEPER_WHITELIST")

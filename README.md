@@ -60,6 +60,23 @@ Just in case you mess up and want a quick way to revert the changes.
 //Keep gary out by closing the gate to your server which hosts the lawnmower daemon.
 //Stay out of my shed Garry!
 
+'''
+The way it currently works is this.
+
+This program now adds 3 lists to your ip-tables
+
+GATEKEEPER_WHITELIST
+GATEKEEPER_TEMPORARY_LEASES
+GATEKEEPER_BLOCK_PORTS
+
+The whitelist is a simple whitelist, by default it gets a pass for 192.168.0.0/24
+
+The temporary_leases are the machines that have proven they know the secret of the gatekeeper!
+
+The block ports is a list of rules to ensure the ports that are to be gate keeped are blocked if a client doesnt 
+    appear in either the whitelist or the temporary leases
+'''
+
 ### Service
 To make gatekeeper run when the machine starts one can use systemd services.
 First you will need to edit the example service file.
@@ -80,8 +97,13 @@ You can use the command below to check if the script was able to start correctly
 - [x] Add config file support
 - [x] Debug print
 - [x] Service functionality and how to enable
-- [ ] Rewrite argparse to support overloading and or substituting the config file
+- [x] Rewrite argparse to support overloading and or substituting the config file
 - [x] Add logging capabilties
 - [x] Catch sigint
-- [ ] Add sender addr to sercret hash as salt to prevent replay attacks in small time window?
 - [ ] Rewrite the README file with the correct instructions
+- [ ] Clean up code, debug functionality and logging messages
+
+### Future todo?
+- [ ] Add sender addr to sercret hash as salt to prevent replay attacks in small time window?
+- [ ] Add a close the gate message payload for the client?
+
