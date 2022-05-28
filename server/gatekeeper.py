@@ -82,7 +82,8 @@ def firewall_setup(local_subnet, ports_to_block):
             "--dport", ",".join(ports_to_block), "-j", "DROP")
 
 def open_firewall_rule_for(addr, ports):
-    logging.info(f"opening the ports \"{ports}\" for GARY at {addr}")
+    print(f"Verified connection from {addr}")
+    logging.info(f"Opening the ports \"" + ",".join(ports) + f"\" for {addr}")
     # Open the gatekeeping port for tcp and udp traffic comming from addr by adding them to the chain
     iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "tcp", "--match", "multiport",
             "--dport", ",".join(ports), "-j", "ACCEPT")
@@ -90,21 +91,23 @@ def open_firewall_rule_for(addr, ports):
             "--dport", ",".join(ports), "-j", "ACCEPT")
 
 def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=10_000_000_000):
+    logging.info(f"Starting gatekeeper service on port {listening_port}")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(("0.0.0.0", listening_port))
         # Listen for incomming connections
         while True:
             data, (addr, remote_port) = s.recvfrom(1024)
-            print(f"Connected by {addr}")
             # Incorrect payload length
             if len(data) != 8 + 32:
-                print(f"non-recognized message coming in from {addr}:{remote_port}")
+                print(f"Non-recognized message received from {addr}:{remote_port}")
+                logging.error((f"Non-recognized message received from {addr}:{remote_port}"))
                 continue
             # Check the timestamp
             timestamp, = struct.unpack_from("<Q", data)
             now = time.time_ns()
             if timestamp < now - acceptable_margin_ns or timestamp > now + acceptable_margin_ns:
-                print("not in acceptable timing window")
+                print((f"Timed-out message received from {addr}:{remote_port}"))
+                logging.error((f"Timed-out message received from {addr}:{remote_port}"))
                 continue
             # Verify the secret
             m = hashlib.sha256()
@@ -112,8 +115,10 @@ def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=1
             m.update(secret.encode('ascii'))
             eaten = m.digest()
             if eaten != data[8:]:
-                print(f"not allowed, digest is {eaten} data is {data[8:]}")
+                print((f"Incorrect sercret received from {addr}:{remote_port}"))
+                logging.error(f"Incorrect sercret received from {addr}:{remote_port}")
                 continue
+
             # Open the firewall rule for the ports
             open_firewall_rule_for(addr, gatekeeping_ports)
 
@@ -178,22 +183,29 @@ def parse_config(path):
     return args
 
 def main():
-    print_header()
+    # Parse the arguments and possible configuration
+    #args = handle_args()    
     args = parse_config(sys.argv[1])
-    #args = handle_args()
+    # Print the header
+    print_header()
+    # Setup logging and signal catching correctly
+    logging.basicConfig(filename='gate.log', encoding='utf-8', level=logging.DEBUG, format='%(levelname)s [%(asctime)s]: %(message)s', datefmt='%Y/%m/%d %H:%M:%S')
+ 
     try:
-        # ports to gatekeep
+        # Setup the intial firewall state, creating the chains and blocking the right ports
         firewall_setup(args["LOCS"], args["PROT"])
+        # Start listening for the secret
         run_server(args["PORT"],
                    args["PROT"],
                    args["PASS"],
                    acceptable_margin_ns=int(args["TIME"] * 1_000_000_000))
     finally:
         # Clean up
+        logging.info(f"Stopping gatekeeper service")
         rm_chain("GATEKEEPER_WHITELIST")
         rm_chain("GATEKEEPER_TEMPORARY_LEASES")
         rm_chain("GATEKEEPER_BLOCK_PORTS")
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    # Setup logging settings
     main()
