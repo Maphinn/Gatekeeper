@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import logging
+import signal
 import socket
 import time
 import struct
@@ -46,6 +47,11 @@ def dprint(*args, **kwargs):
         green = '\u001b[38;5;101m'
         clear = '\u001b[0m'
         print(f"{green}DBG:{args[0]}{clear}")
+
+def sigint_handler(sig, frame):
+    print('Stoping gatekeeper service')
+    logging.info(f"Stopping gatekeeper service")
+    sys.exit(0)
 
 def iptables(*args, ignore_error=False):
     dprint(f"iptables command: iptables {' '.join(args)}")
@@ -190,7 +196,7 @@ def main():
     print_header()
     # Setup logging and signal catching correctly
     logging.basicConfig(filename='gate.log', encoding='utf-8', level=logging.DEBUG, format='%(levelname)s [%(asctime)s]: %(message)s', datefmt='%Y/%m/%d %H:%M:%S')
- 
+    signal.signal(signal.SIGINT, sigint_handler)
     try:
         # Setup the intial firewall state, creating the chains and blocking the right ports
         firewall_setup(args["LOCS"], args["PROT"])
@@ -201,7 +207,6 @@ def main():
                    acceptable_margin_ns=int(args["TIME"] * 1_000_000_000))
     finally:
         # Clean up
-        logging.info(f"Stopping gatekeeper service")
         rm_chain("GATEKEEPER_WHITELIST")
         rm_chain("GATEKEEPER_TEMPORARY_LEASES")
         rm_chain("GATEKEEPER_BLOCK_PORTS")

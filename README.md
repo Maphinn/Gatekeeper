@@ -82,6 +82,6 @@ You can use the command below to check if the script was able to start correctly
 - [x] Service functionality and how to enable
 - [ ] Rewrite argparse to support overloading and or substituting the config file
 - [x] Add logging capabilties
-- [ ] Catch sigint
+- [x] Catch sigint
 - [ ] Add sender addr to sercret hash as salt to prevent replay attacks in small time window?
 - [ ] Rewrite the README file with the correct instructions
