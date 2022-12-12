@@ -43,6 +43,7 @@ def iptables(*args, ignore_error=False):
         if result.stderr != b'iptables: Chain already exists.\n':
             print("Calling iptables resulted in error!")
             logging.error("Calling iptables resulted in error!")
+            logging.error(args)
             logging.error(result.stdout)
             logging.error(result.stderr)
             exit(1)
@@ -68,10 +69,12 @@ def firewall_setup(whitelist, ports):
     for net in whitelist:
         iptables("-A", "GATEKEEPER_WHITELIST", "-s", net, "-j", "ACCEPT")
     # Ensure that incomming traffic on the requested ports is blocked by default
-    iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "tcp", "--match", "multiport",
-            "--dport", ",".join(ports), "-j", "DROP")
-    iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "udp", "--match", "multiport",
-            "--dport", ",".join(ports), "-j", "DROP")
+    iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "tcp", "--match", "multiport", "--dport", ",".join(ports), "-j", "DROP")
+    iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "udp", "--match", "multiport", "--dport", ",".join(ports), "-j", "DROP")
+    # Open the gate keeping ports for docker Containers
+    for port in ports:
+      iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "tcp", "-m", "conntrack", "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "DROP")
+      iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "udp", "-m", "conntrack", "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "DROP")
 
 def open_firewall_rule_for(addr, ports):
     # Convert ports array to strings for iptables
@@ -79,10 +82,12 @@ def open_firewall_rule_for(addr, ports):
     print(f"Received verified connection from \"{addr}\", granting access to the ports: \"{', '.join(ports)}\"")
     logging.info(f"Received verified connection from \"{addr}\", granting access to the ports: \"{', '.join(ports)}\"")
     # Open the gatekeeping port for tcp and udp traffic comming from addr by adding them to the chain
-    iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "tcp", "--match", "multiport",
-            "--dport", ",".join(ports), "-j", "ACCEPT")
-    iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "udp", "--match", "multiport",
-            "--dport", ",".join(ports), "-j", "ACCEPT")
+    iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "tcp", "--match", "multiport", "--dport", ",".join(ports), "-j", "ACCEPT")
+    iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "udp", "--match", "multiport", "--dport", ",".join(ports), "-j", "ACCEPT")
+    # Open the gatekeeping ports for docker containers
+    for port in ports:
+      iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-p", "tcp", "-m", "conntrack", "--ctorigsrc", addr, "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "ACCEPT")
+      iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-p", "udp", "-m", "conntrack", "--ctorigsrc", addr, "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "ACCEPT")
 
 def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=10_000_000_000):
     logging.info(f"Starting gatekeeper service on port {listening_port}")
