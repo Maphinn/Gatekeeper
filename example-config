@@ -9,7 +9,7 @@
 ################################################
 # The port that the server listens on for the udp package from the client.
 # Listening udp port:
-port=8123
+port=1337
 
 # Ports that need to be shielded.
 # Any incomming udp or tcp traffic to these ports will be blocked by the firewall.
@@ -17,18 +17,25 @@ port=8123
 # Even then they will only open up for the ip address that send the packet.
 # The ports here are seperated by comma's
 # Protected ports:
-prot=21,22,25,80,443
+protected=21,22,25,80,443
+
+# Docker container port ranges that need to be shielded.
+# Using the format "port:port" to specify a range separated by comma's.
+# Docker has it's own firewall rules and packet routing.
+# This means your docker containers won't be blocked by a simple rule.
+# Therefore we have a specific setup for docker container rules.
+docker=8080:8090,9000,12
 
 # A secret code that is verified by the server.
 # By making sure the secret is unique and not the default.
 # This secret will also need to be send by the client.
 # Secret:
-pass=How do you like them apples?
+secret=How do you like them apples?
 
 # locs contains the ip addresses and ranges that should be whitelisted for your setup.
 # If you want your server to always allow certain addresses access, use this.
 # Local subnets:
-locs=192.168.0.0/16, 10.0.0.0/8
+whitelisted=192.168.0.0/16, 10.0.0.0/8
 
 # Time margin in seconds to accept requests.
 # To prevent replay attacks a timestamp is added and hashed along with the secret.

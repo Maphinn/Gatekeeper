@@ -58,7 +58,7 @@ def create_chain_and_add_to_input(name):
     iptables("-N", name)                  # create chain
     iptables("-A", "INPUT", "-j", name)   # add jump from INPUT
 
-def firewall_setup(whitelist, ports):
+def firewall_setup(whitelist, ports, docker):
     # Convert ports array to strings for iptables
     ports = list(map(str,ports))
     # Create the iptable chains
@@ -72,24 +72,25 @@ def firewall_setup(whitelist, ports):
     iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "tcp", "--match", "multiport", "--dport", ",".join(ports), "-j", "DROP")
     iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "udp", "--match", "multiport", "--dport", ",".join(ports), "-j", "DROP")
     # Open the gate keeping ports for docker Containers
-    for port in ports:
+    for port in docker:
       iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "tcp", "-m", "conntrack", "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "DROP")
       iptables("-A", "GATEKEEPER_BLOCK_PORTS", "-p", "udp", "-m", "conntrack", "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "DROP")
 
-def open_firewall_rule_for(addr, ports):
+def open_firewall_rule_for(addr, ports, docker):
     # Convert ports array to strings for iptables
     ports = list(map(str,ports))
-    print(f"Received verified connection from \"{addr}\", granting access to the ports: \"{', '.join(ports)}\"")
     logging.info(f"Received verified connection from \"{addr}\", granting access to the ports: \"{', '.join(ports)}\"")
     # Open the gatekeeping port for tcp and udp traffic comming from addr by adding them to the chain
     iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "tcp", "--match", "multiport", "--dport", ",".join(ports), "-j", "ACCEPT")
     iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-s", addr, "-p", "udp", "--match", "multiport", "--dport", ",".join(ports), "-j", "ACCEPT")
     # Open the gatekeeping ports for docker containers
-    for port in ports:
+    dprint(docker)
+    logging.info(f"Also granting access to the docker container port ranges: \"{', '.join(docker)}\"")
+    for port in docker:
       iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-p", "tcp", "-m", "conntrack", "--ctorigsrc", addr, "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "ACCEPT")
       iptables("-A", "GATEKEEPER_TEMPORARY_LEASES", "-p", "udp", "-m", "conntrack", "--ctorigsrc", addr, "--ctorigdstport", str(port), "--ctdir", "ORIGINAL", "-j", "ACCEPT")
 
-def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=10_000_000_000):
+def run_server(listening_port, gatekeeping_ports, docker_ports, secret, acceptable_margin_ns=10_000_000_000):
     logging.info(f"Starting gatekeeper service on port {listening_port}")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(("0.0.0.0", listening_port))
@@ -119,7 +120,7 @@ def run_server(listening_port, gatekeeping_ports, secret, acceptable_margin_ns=1
                 continue
 
             # Open the firewall rule for the ports
-            open_firewall_rule_for(addr, gatekeeping_ports)
+            open_firewall_rule_for(addr, gatekeeping_ports, docker_ports)
 
 # Parse one line of the config file
 def parse_config_argument(args, arg):
@@ -129,6 +130,9 @@ def parse_config_argument(args, arg):
     elif (arg[0] == "protected" and args.protected_ports == []):
         dprint(f"Setting protected ports: {arg[1].split(',')}")
         args.protected_ports = list(arg[1].split(','))
+    elif (arg[0] == "docker" and args.docker_ports == []):
+        dprint(f"Setting docker container ports: {arg[1].split(',')}")
+        args.docker_ports = list(arg[1].split(','))
     elif (arg[0] == "secret" and args.secret == ''):
         dprint(f"Got secret from the config")
         args.secret = str(arg[1])
@@ -163,6 +167,7 @@ def handle_args():
     parser.add_argument('-t', '--time_margin', type=float, default=10.0, help="floating point number to specify how much network delay is allowed in network/time delay in seconds")
     parser.add_argument('-p', '--port',        type=int,   default=8123, help="udp-port this service uses to listen in to messages from the outside world")
     parser.add_argument('-x', '--protected_ports', default=[], metavar='protected-ports', nargs="+", help="port that should be protected")
+    parser.add_argument('-d', '--docker_ports',    default=[], metavar='docker-ports', nargs="+", help="port from docker containers that should be protected")
     args = parser.parse_args()
 
     # If a config path has been supplied try to parse the config
@@ -180,6 +185,8 @@ def handle_args():
         args.protected_ports[i] = int(port)
         if 0 >= args.protected_ports[i] or args.protected_ports[i] >= 65535:
             sys.exit(f"Protected port \"{port}\" is not in the range 1-65535")
+
+    # TODO Check docker ports and support checking port ranges (port:port)
     return args
 
 def main():
@@ -192,10 +199,11 @@ def main():
     signal.signal(signal.SIGINT, sigint_handler)
     try:
         # Setup the intial firewall state, creating the chains and blocking the right ports
-        firewall_setup(args.whitelisted, args.protected_ports)
+        firewall_setup(args.whitelisted, args.protected_ports, args.docker_ports)
         # Start listening for the secret
         run_server(args.port,
                    args.protected_ports,
+                   args.docker_ports,
                    args.secret,
                    acceptable_margin_ns=int(args.time_margin * 1_000_000_000))
     finally:
